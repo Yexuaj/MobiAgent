@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "name": "android-smoke-workflow",
+    "description": "Deterministic no-model Android smoke workflow for Personal Intelligence collection examples."
+  },
+  "defaults": {
+    "device": "Android"
+  },
+  "steps": [
+    {
+      "id": 1,
+      "type": "gui_action",
+      "action": "keyevent",
+      "key": "home"
+    },
+    {
+      "id": 2,
+      "type": "gui_action",
+      "action": "screenshot",
+      "file_name": "home_before_swipe.jpg"
+    },
+    {
+      "id": 3,
+      "type": "gui_action",
+      "action": "sleep",
+      "seconds": 1
+    },
+    {
+      "id": 4,
+      "type": "gui_action",
+      "action": "swipe_with_coords",
+      "start_x": 540,
+      "start_y": 1700,
+      "end_x": 540,
+      "end_y": 900
+    },
+    {
+      "id": 5,
+      "type": "gui_action",
+      "action": "screenshot",
+      "file_name": "home_after_swipe.jpg"
+    }
+  ]
+}
+

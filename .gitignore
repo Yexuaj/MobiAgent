@@ -41,4 +41,22 @@ runner/mobiagent/workflow/__pycache__/
 runner/mobiagent/workflow/test-runs/
 runner/mobiagent/.env
 collect-apps-info.sh
+audit_e2e_feh/
+
+# Personal Intelligence runtime outputs
+!outputs/
+!outputs/personal_intelligence/
+outputs/personal_intelligence/*
+!outputs/personal_intelligence/raw_runs/
+!outputs/personal_intelligence/processed/
+!outputs/personal_intelligence/memory/
+!outputs/personal_intelligence/generated/
+outputs/personal_intelligence/raw_runs/*
+outputs/personal_intelligence/processed/*
+outputs/personal_intelligence/memory/*
+outputs/personal_intelligence/generated/*
+!outputs/personal_intelligence/raw_runs/.gitkeep
+!outputs/personal_intelligence/processed/.gitkeep
+!outputs/personal_intelligence/memory/.gitkeep
+!outputs/personal_intelligence/generated/.gitkeep
 
