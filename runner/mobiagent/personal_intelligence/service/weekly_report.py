@@ -97,8 +97,9 @@ def _possible_tasks(
         return
 
     times_by_event = _items_by_event(time_hints)
+    time_lookup = _items_by_id(time_hints)
     for todo in todos[:MAX_SECTION_ITEMS]:
-        time_text = _time_suffix(times_by_event.get(str(todo.get("semantic_event_id")), []))
+        time_text = _time_suffix(_linked_time_hints(todo, time_lookup, times_by_event))
         lines.append(f"- {todo.get('text', '')}{time_text} {_evidence_ref(todo, evidence_index)}")
     lines.append("")
 
@@ -188,7 +189,23 @@ def _time_suffix(time_hints: list[dict[str, Any]]) -> str:
         if text and key not in seen:
             values.append(text)
             seen.add(key)
-    return f" (time: {', '.join(values)})" if values else ""
+    return f" — Time: {', '.join(values)}" if values else ""
+
+
+def _linked_time_hints(
+    todo: dict[str, Any],
+    time_lookup: dict[str, dict[str, Any]],
+    times_by_event: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    refs = todo.get("time_hint_refs")
+    linked: list[dict[str, Any]] = []
+    if isinstance(refs, list):
+        for ref in refs:
+            if isinstance(ref, str) and ref in time_lookup:
+                linked.append(time_lookup[ref])
+    if linked:
+        return linked
+    return times_by_event.get(str(todo.get("semantic_event_id")), [])
 
 
 def _high_value_relations(
@@ -223,6 +240,15 @@ def _items_by_event(items: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
         if isinstance(event_id, str):
             by_event.setdefault(event_id, []).append(item)
     return by_event
+
+
+def _items_by_id(items: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in items:
+        item_id = item.get("id")
+        if isinstance(item_id, str):
+            by_id[item_id] = item
+    return by_id
 
 
 def _items(value: Any) -> list[dict[str, Any]]:

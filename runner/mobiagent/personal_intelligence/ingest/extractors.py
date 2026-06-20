@@ -41,9 +41,10 @@ def attach_derived(semantic_events: dict[str, Any]) -> dict[str, Any]:
 def extract_event_hints(event: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     """Extract event-local hints from explicit semantic text only."""
 
+    time_hints = extract_time_hints(event)
     return {
-        "todo_candidates": extract_todo_candidates(event),
-        "time_hints": extract_time_hints(event),
+        "todo_candidates": extract_todo_candidates(event, time_hints=time_hints),
+        "time_hints": time_hints,
         "entities": extract_entities(event),
         "profile_facts": extract_profile_facts(event),
     }

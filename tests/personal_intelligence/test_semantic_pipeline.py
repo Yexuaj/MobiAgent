@@ -101,22 +101,106 @@ class SemanticPipelineTest(unittest.TestCase):
         self.assertEqual(todo["id"], "todo:sem:step:1:1")
         self.assertEqual(todo["semantic_event_id"], "sem:step:1")
         self.assertEqual(todo["source_event_id"], "step:1")
-        self.assertEqual(todo["text"], "prepare Android smoke report tomorrow 3pm")
+        self.assertEqual(todo["text"], "prepare Android smoke report")
         self.assertEqual(todo["evidence"]["field"], "content.text")
         self.assertEqual(todo["evidence"]["semantic_event_id"], "sem:step:1")
         self.assertEqual(todo["evidence"]["source_event_id"], "step:1")
-        self.assertEqual(todo["evidence"]["span"], [0, 41])
-        self.assertEqual(time_hint["text"], "tomorrow")
+        self.assertEqual(todo["evidence"]["span"], [0, 28])
+        self.assertEqual(todo["time_hint_refs"], ["time:sem:step:1:1"])
+        self.assertEqual(time_hint["text"], "tomorrow 3pm")
+        self.assertEqual(time_hint["normalized"], ["relative_day:+1", "time_of_day:15:00"])
+        self.assertTrue(time_hint["needs_time_basis"])
         self.assertEqual(entity["text"], "Android")
         self.assertEqual(suggestions, derived["suggestions"])
         self.assertEqual(suggestions[0]["kind"], "todo_reminder")
         self.assertEqual(
             suggestions[0]["evidence_refs"],
-            ["todo:sem:step:1:1", "time:sem:step:1:1", "time:sem:step:1:2"],
+            ["todo:sem:step:1:1", "time:sem:step:1:1"],
         )
         self.assertEqual(suggestions[0]["semantic_event_ids"], ["sem:step:1"])
         self.assertEqual(suggestions[0]["source_event_ids"], ["step:1"])
         self.assertTrue(derived["relations"])
+
+    def test_stage3b_chinese_time_longest_non_overlapping_and_todo_refs(self) -> None:
+        text = "准备科研实训报告和实验截图 明天下午三点"
+        semantic_events = self._semantic_events_with_text(text)
+
+        attach_derived(semantic_events)
+        report = render_weekly_report(semantic_events)
+
+        derived = semantic_events["derived"]
+        self.assertEqual(len(derived["time_hints"]), 1)
+        time_hint = derived["time_hints"][0]
+        self.assertEqual(time_hint["text"], "明天下午三点")
+        self.assertEqual(time_hint["normalized"], ["relative_day:+1", "time_of_day:15:00"])
+        self.assertEqual(time_hint["time_grain"], "day_time")
+        self.assertTrue(time_hint["is_relative"])
+        self.assertTrue(time_hint["needs_time_basis"])
+        self.assertGreaterEqual(time_hint["confidence"], 0.9)
+        self.assertNotIn("明天", [hint["text"] for hint in derived["time_hints"][1:]])
+        self.assertNotIn("下午三点", [hint["text"] for hint in derived["time_hints"][1:]])
+        time_span = time_hint["evidence"]["span"]
+        self.assertEqual(text[time_span[0] : time_span[1]], time_hint["text"])
+
+        todo = derived["todo_candidates"][0]
+        self.assertEqual(todo["text"], "准备科研实训报告和实验截图")
+        self.assertEqual(todo["time_hint_refs"], [time_hint["id"]])
+        self.assertTrue(all(isinstance(ref, str) for ref in todo["time_hint_refs"]))
+        todo_span = todo["evidence"]["span"]
+        self.assertEqual(text[todo_span[0] : todo_span[1]], todo["text"])
+        self.assertIn("准备科研实训报告和实验截图 — Time: 明天下午三点", report)
+
+    def test_stage3b_ambiguous_chinese_hour_stays_conservative(self) -> None:
+        text = "准备报告 明天3点"
+        semantic_events = self._semantic_events_with_text(text)
+
+        attach_derived(semantic_events)
+
+        time_hint = semantic_events["derived"]["time_hints"][0]
+        self.assertEqual(time_hint["text"], "明天3点")
+        self.assertIn("relative_day:+1", time_hint["normalized"])
+        self.assertIn("hour:3", time_hint["normalized"])
+        self.assertNotIn("time_of_day:15:00", time_hint["normalized"])
+        self.assertEqual(time_hint["time_grain"], "ambiguous_hour")
+        self.assertLess(time_hint["confidence"], 0.9)
+        self.assertTrue(time_hint["needs_time_basis"])
+        self.assertFalse(any(part.startswith("date:") for part in time_hint["normalized"]))
+        span = time_hint["evidence"]["span"]
+        self.assertEqual(text[span[0] : span[1]], time_hint["text"])
+
+    def test_stage3b_time_only_does_not_create_todo(self) -> None:
+        semantic_events = self._semantic_events_with_text("明天下午三点")
+
+        attach_derived(semantic_events)
+
+        self.assertEqual([hint["text"] for hint in semantic_events["derived"]["time_hints"]], ["明天下午三点"])
+        self.assertEqual(semantic_events["derived"]["todo_candidates"], [])
+
+    def test_stage3b_filters_pure_preference_profile_and_demo_descriptions(self) -> None:
+        cases = [
+            "I prefer local demo reports tomorrow",
+            "This demo shows how to prepare reports tomorrow",
+            "Profile: usually prepare reports in local demos",
+        ]
+        for text in cases:
+            with self.subTest(text=text):
+                semantic_events = self._semantic_events_with_text(text)
+
+                attach_derived(semantic_events)
+
+                self.assertEqual(semantic_events["derived"]["todo_candidates"], [])
+
+    def test_stage3b_clear_action_with_demo_word_is_kept(self) -> None:
+        text = "prepare MobiAgent demo report tomorrow 3pm"
+        semantic_events = self._semantic_events_with_text(text)
+
+        attach_derived(semantic_events)
+
+        derived = semantic_events["derived"]
+        todo = derived["todo_candidates"][0]
+        time_hint = derived["time_hints"][0]
+        self.assertEqual(todo["text"], "prepare MobiAgent demo report")
+        self.assertEqual(todo["time_hint_refs"], [time_hint["id"]])
 
     def test_ui_noise_filter_preserves_original_text_and_derived_spans(self) -> None:
         text = (
@@ -173,7 +257,7 @@ class SemanticPipelineTest(unittest.TestCase):
 
         todo = derived["todo_candidates"][0]
         profile = derived["profile_facts"][0]
-        self.assertEqual(todo["text"], "Need to prepare MobiAgent report tomorrow")
+        self.assertEqual(todo["text"], "Need to prepare MobiAgent report")
         self.assertIn("I prefer local demos for the project", profile["text"])
         self.assertEqual(text[todo["evidence"]["span"][0] : todo["evidence"]["span"][1]], todo["text"])
         self.assertEqual(text[profile["evidence"]["span"][0] : profile["evidence"]["span"][1]], profile["text"])
@@ -573,6 +657,41 @@ class SemanticPipelineTest(unittest.TestCase):
             if event["source_event_id"] == source_event_id:
                 return event
         raise AssertionError(f"missing semantic event for {source_event_id}")
+
+    def _semantic_events_with_text(self, text: str) -> dict:
+        return {
+            "schema_version": "pi.semantic.v1",
+            "source_run": {
+                "run_id": "fixture",
+                "run_status": "success",
+                "workflow_file": None,
+                "artifact_base": {"type": None, "path": None},
+            },
+            "events": [
+                {
+                    "semantic_event_id": "sem:step:1",
+                    "source_event_id": "step:1",
+                    "event_type": "workflow_step",
+                    "content": {
+                        "text": text,
+                        "provenance": {
+                            "kind": "synthetic_fixture",
+                            "synthetic": True,
+                        },
+                    },
+                    "artifacts": [],
+                    "metadata": {"step_id": "1", "status": "success"},
+                }
+            ],
+            "derived": {
+                "todo_candidates": [],
+                "time_hints": [],
+                "entities": [],
+                "profile_facts": [],
+                "relations": [],
+                "suggestions": [],
+            },
+        }
 
     def _assert_no_stage1_leaks(self, serialized: str) -> None:
         self.assertNotIn("raw_step", serialized)
