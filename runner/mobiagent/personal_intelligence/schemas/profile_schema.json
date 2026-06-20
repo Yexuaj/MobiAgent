@@ -1,7 +1,48 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Personal Intelligence Profile",
+  "title": "Personal Intelligence Profile Fact Candidate",
   "type": "object",
+  "required": [
+    "id",
+    "kind",
+    "fact_type",
+    "subject",
+    "semantic_event_id",
+    "source_event_id",
+    "text",
+    "evidence"
+  ],
+  "properties": {
+    "kind": {
+      "const": "profile_fact_candidate"
+    },
+    "fact_type": {
+      "enum": ["preference", "habit", "interest", "project", "constraint", "unknown"]
+    },
+    "subject": {
+      "const": "user"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["semantic_event_id", "source_event_id", "field", "span"],
+      "properties": {
+        "semantic_event_id": {"type": "string"},
+        "source_event_id": {"type": "string"},
+        "field": {"const": "content.text"},
+        "span": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "integer"}
+        }
+      },
+      "additionalProperties": true
+    }
+  },
   "additionalProperties": true
 }
-

@@ -1,7 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Personal Intelligence Todo",
+  "title": "Personal Intelligence Todo Candidate",
   "type": "object",
+  "required": ["id", "kind", "semantic_event_id", "source_event_id", "text", "evidence"],
+  "properties": {
+    "kind": {
+      "const": "todo_candidate"
+    },
+    "evidence": {
+      "$ref": "#/$defs/evidence"
+    }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["semantic_event_id", "source_event_id", "field", "span"],
+      "properties": {
+        "semantic_event_id": {"type": "string"},
+        "source_event_id": {"type": "string"},
+        "field": {"const": "content.text"},
+        "span": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "integer"}
+        }
+      },
+      "additionalProperties": true
+    }
+  },
   "additionalProperties": true
 }
-

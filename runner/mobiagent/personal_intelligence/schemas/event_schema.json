@@ -1,7 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Personal Intelligence Event",
+  "title": "Personal Intelligence Semantic Events",
   "type": "object",
+  "required": ["schema_version", "source_run", "events", "derived"],
+  "properties": {
+    "schema_version": {
+      "const": "pi.semantic.v1"
+    },
+    "events": {
+      "type": "array"
+    },
+    "derived": {
+      "type": "object",
+      "required": [
+        "todo_candidates",
+        "time_hints",
+        "entities",
+        "profile_facts",
+        "relations",
+        "suggestions"
+      ]
+    }
+  },
   "additionalProperties": true
 }
-
