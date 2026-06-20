@@ -17,6 +17,13 @@ This Stage 1 pipeline focuses on the safe data contract:
 The report command is a baseline/debug renderer for contract validation and
 leak checks. It is not a final user-facing weekly report.
 
+Stage 3A adds a conservative UI noise filter before derived extraction. The
+filter only affects todo/time/entity/profile extraction inputs and report
+content; it does not rewrite `semantic_events[*].content.text`. Evidence spans
+still refer to the original `content.text`. The weekly report is now a local
+baseline/debug skeleton with `Highlights`, `Possible Tasks`, `Time References`,
+`Context Notes`, and `Evidence` sections instead of a full relation graph dump.
+
 Examples:
 
 ```bash

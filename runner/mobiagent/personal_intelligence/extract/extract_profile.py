@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from runner.mobiagent.personal_intelligence.extract.extract_todos import event_ids, event_text, sentence_spans
+from runner.mobiagent.personal_intelligence.extract.extract_todos import event_ids, event_text
+from runner.mobiagent.personal_intelligence.extract.ui_noise_filter import filtered_sentence_spans
 
 FACT_TYPES = {
     "preference": (
@@ -51,7 +52,7 @@ def extract_profile_facts(event: dict[str, Any]) -> list[dict[str, Any]]:
     facts: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    for sentence, start, end in sentence_spans(text):
+    for sentence, start, end in filtered_sentence_spans(text):
         fact_type = _fact_type(sentence)
         if fact_type is None:
             continue

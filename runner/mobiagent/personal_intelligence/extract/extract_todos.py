@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from runner.mobiagent.personal_intelligence.extract.ui_noise_filter import filtered_sentence_spans, sentence_spans
+
 TODO_KEYWORDS = (
     "todo",
     "to do",
@@ -40,7 +42,7 @@ def extract_todo_candidates(event: dict[str, Any]) -> list[dict[str, Any]]:
     semantic_event_id, source_event_id = event_ids(event)
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for sentence, sentence_start, sentence_end in sentence_spans(text):
+    for sentence, sentence_start, sentence_end in filtered_sentence_spans(text):
         lowered = sentence.lower()
         todo_text, offset = _todo_text(sentence, lowered)
         if todo_text and todo_text.lower() not in seen:
@@ -66,23 +68,24 @@ def extract_time_hints(event: dict[str, Any]) -> list[dict[str, Any]]:
     semantic_event_id, source_event_id = event_ids(event)
     hints: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for match in TIME_PATTERN.finditer(text):
-        value = match.group(0)
-        key = value.lower()
-        if key not in seen:
-            hints.append(
-                build_derived_item(
-                    "time",
-                    "time_hint",
-                    semantic_event_id,
-                    source_event_id,
-                    len(hints) + 1,
-                    value,
-                    match.start(),
-                    match.end(),
+    for sentence, sentence_start, _sentence_end in filtered_sentence_spans(text):
+        for match in TIME_PATTERN.finditer(sentence):
+            value = match.group(0)
+            key = value.lower()
+            if key not in seen:
+                hints.append(
+                    build_derived_item(
+                        "time",
+                        "time_hint",
+                        semantic_event_id,
+                        source_event_id,
+                        len(hints) + 1,
+                        value,
+                        sentence_start + match.start(),
+                        sentence_start + match.end(),
+                    )
                 )
-            )
-            seen.add(key)
+                seen.add(key)
     return hints
 
 
@@ -90,28 +93,30 @@ def extract_entities(event: dict[str, Any]) -> list[dict[str, Any]]:
     text = event_text(event)
     semantic_event_id, source_event_id = event_ids(event)
     entities: list[dict[str, Any]] = []
-    text_lower = text.lower()
     used_spans: set[tuple[int, int]] = set()
-    for term in ENTITY_TERMS:
-        start = text_lower.find(term.lower())
-        if start < 0:
-            continue
-        span = (start, start + len(term))
-        if span in used_spans:
-            continue
-        entities.append(
-            build_derived_item(
-                "entity",
-                "entity",
-                semantic_event_id,
-                source_event_id,
-                len(entities) + 1,
-                text[start : start + len(term)],
-                start,
-                start + len(term),
+    for sentence, sentence_start, _sentence_end in filtered_sentence_spans(text):
+        sentence_lower = sentence.lower()
+        for term in ENTITY_TERMS:
+            local_start = sentence_lower.find(term.lower())
+            if local_start < 0:
+                continue
+            start = sentence_start + local_start
+            span = (start, start + len(term))
+            if span in used_spans:
+                continue
+            entities.append(
+                build_derived_item(
+                    "entity",
+                    "entity",
+                    semantic_event_id,
+                    source_event_id,
+                    len(entities) + 1,
+                    sentence[local_start : local_start + len(term)],
+                    start,
+                    start + len(term),
+                )
             )
-        )
-        used_spans.add(span)
+            used_spans.add(span)
     return entities
 
 
@@ -125,19 +130,6 @@ def event_text(event: dict[str, Any]) -> str:
 
 def event_ids(event: dict[str, Any]) -> tuple[str, str]:
     return str(event.get("semantic_event_id") or ""), str(event.get("source_event_id") or "")
-
-
-def sentence_spans(text: str) -> list[tuple[str, int, int]]:
-    sentences: list[tuple[str, int, int]] = []
-    for match in re.finditer(r"[^.!?\n]+", text):
-        raw_sentence = match.group(0)
-        sentence = raw_sentence.strip()
-        if not sentence:
-            continue
-        leading = len(raw_sentence) - len(raw_sentence.lstrip())
-        trailing = len(raw_sentence.rstrip())
-        sentences.append((sentence, match.start() + leading, match.start() + trailing))
-    return sentences
 
 
 def build_derived_item(

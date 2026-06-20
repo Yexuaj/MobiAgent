@@ -234,8 +234,14 @@ class VisualTextProviderTest(unittest.TestCase):
                 semantic_events = json.load(file)
             report = report_path.read_text(encoding="utf-8")
 
-        self.assertIn("Baseline/Debug Report", report)
-        self.assertIn("not a final user-facing report", report)
+        self.assertIn("Personal Intelligence Local Baseline/Debug Report", report)
+        self.assertIn(
+            "This report is generated from local baseline extraction for contract validation and demo review. "
+            "It is not a final user-facing intelligence report.",
+            report,
+        )
+        for section in ("Highlights", "Possible Tasks", "Time References", "Context Notes", "Evidence"):
+            self.assertIn(f"## {section}", report)
         self._assert_no_visual_leaks(json.dumps(semantic_events, ensure_ascii=False) + report)
 
     def _write_visual_summary(

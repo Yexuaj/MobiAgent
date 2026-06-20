@@ -13,6 +13,8 @@ from runner.mobiagent.personal_intelligence.ingest.semantic_events import build_
 from runner.mobiagent.personal_intelligence.load_workflow_run import load_workflow_run
 from runner.mobiagent.personal_intelligence.normalize_events import normalize_workflow_run
 from runner.mobiagent.personal_intelligence.service.proactive_service import build_suggestions
+from runner.mobiagent.personal_intelligence.service.weekly_report import render_weekly_report
+from runner.mobiagent.personal_intelligence.extract.ui_noise_filter import filtered_sentence_spans
 
 
 class SemanticPipelineTest(unittest.TestCase):
@@ -116,6 +118,96 @@ class SemanticPipelineTest(unittest.TestCase):
         self.assertEqual(suggestions[0]["source_event_ids"], ["step:1"])
         self.assertTrue(derived["relations"])
 
+    def test_ui_noise_filter_preserves_original_text_and_derived_spans(self) -> None:
+        text = (
+            "Search or type web address. "
+            "https://10.0.2.2:8000. "
+            "Back Home Tabs Menu. "
+            "Need to prepare MobiAgent report tomorrow. "
+            "I prefer local demos for the project."
+        )
+        semantic_events = {
+            "schema_version": "pi.semantic.v1",
+            "source_run": {
+                "run_id": "fixture",
+                "run_status": "success",
+                "workflow_file": None,
+                "artifact_base": {"type": None, "path": None},
+            },
+            "events": [
+                {
+                    "semantic_event_id": "sem:step:4",
+                    "source_event_id": "step:4",
+                    "event_type": "workflow_step",
+                    "content": {
+                        "text": text,
+                        "provenance": {
+                            "kind": "synthetic_fixture",
+                            "synthetic": True,
+                        },
+                    },
+                    "artifacts": [],
+                    "metadata": {"step_id": "4", "status": "success"},
+                }
+            ],
+            "derived": {
+                "todo_candidates": [],
+                "time_hints": [],
+                "entities": [],
+                "profile_facts": [],
+                "relations": [],
+                "suggestions": [],
+            },
+        }
+
+        attach_derived(semantic_events)
+        build_suggestions(semantic_events)
+        report = render_weekly_report(semantic_events)
+
+        self.assertEqual(semantic_events["events"][0]["content"]["text"], text)
+        derived = semantic_events["derived"]
+        derived_and_report = json.dumps(derived, ensure_ascii=False) + report
+        self.assertNotIn("Search or type web address", derived_and_report)
+        self.assertNotIn("10.0.2.2", derived_and_report)
+        self.assertNotIn("Back Home Tabs Menu", derived_and_report)
+
+        todo = derived["todo_candidates"][0]
+        profile = derived["profile_facts"][0]
+        self.assertEqual(todo["text"], "Need to prepare MobiAgent report tomorrow")
+        self.assertIn("I prefer local demos for the project", profile["text"])
+        self.assertEqual(text[todo["evidence"]["span"][0] : todo["evidence"]["span"][1]], todo["text"])
+        self.assertEqual(text[profile["evidence"]["span"][0] : profile["evidence"]["span"][1]], profile["text"])
+        self.assertTrue(any(relation["relation_type"] == "has_time" for relation in derived["relations"]))
+
+    def test_ui_noise_filter_preserves_chinese_user_semantic_sentence(self) -> None:
+        text = "Back Home Tabs Menu. 记得明天准备 MobiAgent demo，我偏好本地审计流程。"
+
+        spans = filtered_sentence_spans(text)
+
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0][0], "记得明天准备 MobiAgent demo，我偏好本地审计流程。")
+        self.assertEqual(spans[0][1], text.index("记得"))
+
+    def test_ui_noise_filter_keeps_complete_segment_with_ui_prefix_and_semantics(self) -> None:
+        text = (
+            "Search or type web address Need to prepare MobiAgent report tomorrow.\n"
+            "https://10.0.2.2:8000 I prefer local demos for the project."
+        )
+
+        spans = filtered_sentence_spans(text)
+        first = "Search or type web address Need to prepare MobiAgent report tomorrow"
+        second = "https://10.0.2.2:8000 I prefer local demos for the project"
+
+        self.assertEqual(
+            spans,
+            [
+                (first, 0, len(first)),
+                (second, text.index(second), text.index(second) + len(second)),
+            ],
+        )
+        for segment, start, end in spans:
+            self.assertEqual(text[start:end], segment)
+
     def test_run_pipeline_only_writes_requested_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             project_root = Path(tmp_dir) / "project"
@@ -198,10 +290,21 @@ class SemanticPipelineTest(unittest.TestCase):
         self.assertTrue(derived["profile_facts"])
         self.assertTrue(derived["relations"])
         self.assertTrue(derived["suggestions"])
-        self.assertIn("Profile Fact Candidates", report)
-        self.assertIn("Relation Hints", report)
-        self.assertIn("Proactive Suggestions", report)
-        self.assertIn("evidence", report)
+        self.assertIn("Personal Intelligence Local Baseline/Debug Report", report)
+        self.assertIn(
+            "This report is generated from local baseline extraction for contract validation and demo review. "
+            "It is not a final user-facing intelligence report.",
+            report,
+        )
+        for section in ("Highlights", "Possible Tasks", "Time References", "Context Notes", "Evidence"):
+            self.assertIn(f"## {section}", report)
+        self.assertNotIn("Profile Fact Candidates", report)
+        self.assertNotIn("Relation Hints", report)
+        self.assertNotIn("Proactive Suggestions", report)
+        self.assertNotIn("relation:", report)
+        self.assertNotIn("from_id", report)
+        self.assertNotIn("to_id", report)
+        self.assertIn("Evidence: sem:step:1 / step:1 span", report)
         self.assertEqual(report, report_copy)
 
         serialized = json.dumps(semantic_events, ensure_ascii=False) + report
