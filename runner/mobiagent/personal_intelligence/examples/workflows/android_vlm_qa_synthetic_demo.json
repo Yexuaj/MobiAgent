@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "name": "android-vlm-qa-synthetic-demo",
+    "description": "Synthetic Stage 2 example for mapping workflow vlm_qa visible_text back to a screenshot event. No real accounts, chats, or private data."
+  },
+  "defaults": {
+    "device": "Android"
+  },
+  "steps": [
+    {
+      "id": 1,
+      "type": "gui_action",
+      "action": "screenshot",
+      "file_name": "synthetic_demo_page.jpg"
+    },
+    {
+      "id": 2,
+      "type": "tool",
+      "tool_name": "vlm_qa",
+      "inputs": {
+        "mode": "structured",
+        "image": "${steps.1.output.image_path}",
+        "question": "Return visible text from this synthetic demo page as structured_output.visible_text."
+      }
+    }
+  ]
+}

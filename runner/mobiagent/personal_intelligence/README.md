@@ -60,3 +60,20 @@ used by tests:
 
 When `--report-out` is passed without a path, the debug report is written to
 `outputs/personal_intelligence/generated/<run_id>.weekly_report.md`.
+
+## Stage 2 Visual Text Provider
+
+Visual text remains disabled by default. To opt in, pass
+`--enable-visual-text --visual-text-provider workflow_vlm_qa_output`.
+
+`workflow_vlm_qa_output` is the Stage 2 e2e-validated provider. It reads text
+already returned by a workflow `vlm_qa` step, preferring
+`output.structured_output.visible_text` and falling back to summary/response
+fields. The provider maps that text back to the screenshot event that supplied
+the image and records provenance as `workflow_vlm_qa` with
+`provider=workflow_vlm_qa_output`.
+
+This provider requires an OpenAI-compatible vision service wired through the
+workflow `vlm_qa` tool. The example workflow under `examples/workflows/` uses a
+synthetic demo page only; it does not contain real accounts, chats, or private
+data.

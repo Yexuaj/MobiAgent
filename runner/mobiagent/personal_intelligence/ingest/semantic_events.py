@@ -11,10 +11,12 @@ SCHEMA_VERSION = "pi.semantic.v1"
 TEXT_PROVENANCE_NONE = "none"
 TEXT_PROVENANCE_LOCAL_PRIVATE = "local_private"
 TEXT_PROVENANCE_SYNTHETIC = "synthetic_fixture"
+TEXT_PROVENANCE_WORKFLOW_VLM_QA = "workflow_vlm_qa"
 TEXT_PROVENANCE_KINDS = {
     TEXT_PROVENANCE_NONE,
     TEXT_PROVENANCE_LOCAL_PRIVATE,
     TEXT_PROVENANCE_SYNTHETIC,
+    TEXT_PROVENANCE_WORKFLOW_VLM_QA,
 }
 
 
@@ -99,8 +101,8 @@ def _semantic_event(
     text_provenance_inputs: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     source_event_id = str(raw_event["event_id"])
-    text = _allowed_text(source_event_id, text_inputs, text_provenance)
     provenance_input = _provenance_input(source_event_id, text_provenance_inputs)
+    text = _allowed_text(source_event_id, text_inputs, text_provenance, provenance_input)
     return {
         "semantic_event_id": f"sem:{source_event_id}",
         "source_event_id": source_event_id,
@@ -152,8 +154,13 @@ def _content(
     }
 
 
-def _allowed_text(source_event_id: str, text_inputs: dict[str, str], text_provenance: str) -> str | None:
-    if text_provenance == TEXT_PROVENANCE_NONE:
+def _allowed_text(
+    source_event_id: str,
+    text_inputs: dict[str, str],
+    text_provenance: str,
+    provenance_input: dict[str, Any],
+) -> str | None:
+    if text_provenance == TEXT_PROVENANCE_NONE and not provenance_input:
         return None
 
     for key in (source_event_id, f"sem:{source_event_id}"):

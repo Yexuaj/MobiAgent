@@ -17,6 +17,11 @@ from runner.mobiagent.personal_intelligence.ingest.semantic_events import (
     TEXT_PROVENANCE_SYNTHETIC,
     build_semantic_events,
 )
+from runner.mobiagent.personal_intelligence.ingest.visual_text_adapter import (
+    PROVIDER_WORKFLOW_VLM_QA_OUTPUT,
+    VISUAL_TEXT_PROVIDERS,
+    build_visual_text_inputs,
+)
 from runner.mobiagent.personal_intelligence.service.proactive_service import build_suggestions
 from runner.mobiagent.personal_intelligence.service.weekly_report import (
     load_semantic_events,
@@ -71,6 +76,27 @@ def build_parser() -> argparse.ArgumentParser:
         const=DEFAULT_REPORT_SENTINEL,
         help="Optionally write weekly_report.md. Without a value, uses outputs/personal_intelligence/generated/.",
     )
+    run_pipeline.add_argument(
+        "--enable-visual-text",
+        action="store_true",
+        help="Enable an explicit visual text provider. Default leaves visual text disabled.",
+    )
+    run_pipeline.add_argument(
+        "--visual-text-provider",
+        choices=list(VISUAL_TEXT_PROVIDERS),
+        default=PROVIDER_WORKFLOW_VLM_QA_OUTPUT,
+        help="Visual text provider to use when --enable-visual-text is set.",
+    )
+    run_pipeline.add_argument(
+        "--visual-text-max-events",
+        type=int,
+        help="Optional maximum number of events populated by visual text.",
+    )
+    run_pipeline.add_argument(
+        "--visual-text-max-chars",
+        type=int,
+        help="Optional maximum characters kept per visual text event.",
+    )
     run_pipeline.set_defaults(func=_run_pipeline)
 
     report = subparsers.add_parser(
@@ -117,15 +143,27 @@ def _run_pipeline(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error("--text-provenance synthetic_fixture requires --text-fixture.")
 
     text_inputs = load_text_fixture(args.text_fixture) if args.text_fixture else {}
+    text_provenance_inputs: dict[str, dict] = {}
     record = load_pipeline_run(run_dir=args.run_dir)
     raw_events = normalize_workflow_run(record)
     if args.text_fixture:
         _warn_if_text_fixture_unmatched(text_inputs, raw_events)
+    if args.enable_visual_text:
+        visual_inputs = build_visual_text_inputs(
+            record,
+            raw_events,
+            provider=args.visual_text_provider,
+            max_events=args.visual_text_max_events,
+            max_chars=args.visual_text_max_chars,
+        )
+        text_inputs.update(visual_inputs.text_inputs)
+        text_provenance_inputs.update(visual_inputs.text_provenance_inputs)
 
     semantic_events = build_semantic_events(
         raw_events,
         text_provenance=text_provenance,
         text_inputs=text_inputs,
+        text_provenance_inputs=text_provenance_inputs,
     )
     attach_derived(semantic_events)
     suggestions = build_suggestions(semantic_events)
