@@ -44,6 +44,7 @@ collect-apps-info.sh
 
 .idea/
 audit_e2e_feh/
+pi_demo_text.json
 
 # Personal Intelligence runtime outputs
 !outputs/
